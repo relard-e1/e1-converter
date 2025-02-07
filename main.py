@@ -30,10 +30,27 @@ async def process_pdf(file: UploadFile = File(...)):
     with open(file_path, "wb") as buffer:
         buffer.write(await file.read())
 
+    # 🔹 Debug: Prüfen, ob die Datei wirklich empfangen wurde
+    if os.path.exists(file_path):
+        print(f"📂 Datei erhalten: {file.filename}, Größe: {os.path.getsize(file_path)} Bytes")
+    else:
+        print("🚨 Datei wurde NICHT gespeichert!")
+
+    # Debug: Falls die Datei leer ist, Fehler zurückgeben
+    if os.path.getsize(file_path) == 0:
+        return {"error": "Die Datei ist leer oder konnte nicht korrekt gespeichert werden."}
+
+    # Prüfen, ob die Datei eine echte PDF ist
+    with open(file_path, "rb") as f:
+        file_header = f.read(5)
+        if not file_header.startswith(b"%PDF-"):
+            return {"error": "Die Datei ist keine gültige PDF-Datei."}
+
     # PDF verarbeiten
     csv_path = extract_pdf_data(file_path)
-    
+
     return {"csv_url": f"https://dein-projekt.onrender.com/download/{os.path.basename(csv_path)}"}
+
 
 def extract_pdf_data(pdf_path):
     data = []
