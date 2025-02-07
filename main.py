@@ -1,4 +1,5 @@
 from fastapi import FastAPI, File, UploadFile
+from fastapi.responses import FileResponse
 import pdfplumber
 import pandas as pd
 import re
@@ -7,11 +8,20 @@ import os
 app = FastAPI()
 
 UPLOAD_FOLDER = "uploads"
+CSV_FOLDER = "csv"
+os.makedirs(CSV_FOLDER, exist_ok=True)
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 @app.get("/")
 async def root():
     return {"message": "PDF-zu-CSV API ist live!"}
+
+@app.get("/download/{filename}")
+async def download_csv(filename: str):
+    file_path = os.path.join(CSV_FOLDER, filename)
+    if os.path.exists(file_path):
+        return FileResponse(file_path, filename=filename, media_type="text/csv")
+    return {"error": "File not found"}
 
 @app.post("/process-pdf/")
 async def process_pdf(file: UploadFile = File(...)):
@@ -38,7 +48,8 @@ def extract_pdf_data(pdf_path):
             data.extend(parse_order_lines(text_lines))
 
     df = pd.DataFrame(data, columns=["SKU", "Produktname", "Menge"])
-    csv_path = pdf_path.replace(".PDF", ".csv")
+    csv_filename = os.path.basename(pdf_path).replace(".PDF", ".csv")
+    csv_path = os.path.join(CSV_FOLDER, csv_filename)
     df.to_csv(csv_path, index=False, sep=";")
     
     return csv_path
