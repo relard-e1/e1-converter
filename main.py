@@ -58,17 +58,17 @@ def extract_pdf_data(pdf_path):
     with pdfplumber.open(pdf_path) as pdf:
         for page in pdf.pages:
             text_lines = page.extract_text().split("\n")
-            print("\n📌 Extrahierte Zeilen aus PDF:")
-            for idx, line in enumerate(text_lines):
-                print(f"{idx}: {line}")  # Debug-Ausgabe
-            
             data.extend(parse_order_lines(text_lines))
 
     df = pd.DataFrame(data, columns=["SKU", "Produktname", "Menge"])
+    
+    # Speichere CSV direkt im gleichen Ordner wie die PDFs, falls notwendig
     csv_filename = os.path.basename(pdf_path).replace(".PDF", ".csv")
     csv_path = os.path.join(CSV_FOLDER, csv_filename)
+    
     df.to_csv(csv_path, index=False, sep=";")
     
+    print(f"✅ CSV gespeichert unter: {csv_path}")
     return csv_path
 
 def parse_order_lines(text_lines):
