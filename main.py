@@ -19,9 +19,14 @@ async def root():
 @app.get("/download/{filename}")
 async def download_csv(filename: str):
     file_path = os.path.join(CSV_FOLDER, filename)
-    if os.path.exists(file_path):
-        return FileResponse(file_path, filename=filename, media_type="text/csv")
-    return {"error": "File not found"}
+    
+    # Debugging: Überprüfen, ob die Datei existiert
+    if not os.path.exists(file_path):
+        print(f"🚨 Datei nicht gefunden: {file_path}")
+        return {"error": f"File {filename} not found at {file_path}"}
+
+    print(f"✅ CSV-Datei gefunden: {file_path}")
+    return FileResponse(file_path, filename=filename, media_type="text/csv")
 
 @app.post("/process-pdf/")
 async def process_pdf(file: UploadFile = File(...)):
