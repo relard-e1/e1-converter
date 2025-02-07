@@ -51,4 +51,4 @@ def parse_order_lines(text_lines):
                         break
             if current_sku and current_product and current_qty:
                 order_lines.append([current_sku, current_product, current_qty])
-    return order_lines  
+    return order_lines   
