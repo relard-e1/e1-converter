@@ -9,6 +9,10 @@ app = FastAPI()
 UPLOAD_FOLDER = "uploads"
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
+@app.get("/")
+async def root():
+    return {"message": "PDF-zu-CSV API ist live!"}
+
 @app.post("/process-pdf/")
 async def process_pdf(file: UploadFile = File(...)):
     # Datei speichern
