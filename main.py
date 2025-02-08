@@ -35,10 +35,6 @@ async def process_pdf(file: UploadFile = File(...)):
     with open(file_path, "wb") as buffer:
         buffer.write(await file.read())
 
-    # Debugging: Prüfen, ob die Datei existiert
-    if not os.path.exists(file_path):
-        return {"error": "Die Datei wurde nicht korrekt hochgeladen."}
-
     # Prüfen, ob die Datei wirklich eine PDF ist
     with open(file_path, "rb") as f:
         file_header = f.read(5)
@@ -48,8 +44,13 @@ async def process_pdf(file: UploadFile = File(...)):
     # PDF verarbeiten
     csv_path = extract_pdf_data(file_path)
 
-    # ✅ CSV-Datei direkt zurückgeben
-    return FileResponse(csv_path, filename=os.path.basename(csv_path), media_type="text/csv")
+    # ✅ Datei mit Download-Header zurückgeben
+    return FileResponse(
+        csv_path,
+        filename=os.path.basename(csv_path),
+        media_type="text/csv",
+        headers={"Content-Disposition": f"attachment; filename={os.path.basename(csv_path)}"}
+    )
 
 
 def extract_pdf_data(pdf_path):
