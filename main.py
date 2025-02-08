@@ -4,6 +4,7 @@ import pdfplumber
 import pandas as pd
 import re
 import os
+import time
 
 app = FastAPI()
 
@@ -14,9 +15,11 @@ BASE_URL = "https://e1-converter.onrender.com/download/"  # Deine URL für Downl
 os.makedirs(CSV_FOLDER, exist_ok=True)
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
+
 @app.get("/")
 async def root():
     return {"message": "PDF-zu-CSV API ist live!"}
+
 
 @app.get("/download/{filename}")
 async def download_csv(filename: str):
@@ -30,10 +33,18 @@ async def download_csv(filename: str):
     print(f"✅ CSV-Datei gefunden: {file_path}")
     return FileResponse(file_path, filename=filename, media_type="text/csv")
 
+
 @app.post("/process-pdf/")
 async def process_pdf(file: UploadFile = File(...)):
+    # 🕒 Erstelle einen eindeutigen Zeitstempel
+    timestamp = int(time.time())
+
+    #  Generiere einen neuen Dateinamen mit Zeitstempel
+    original_filename = os.path.splitext(file.filename)[0]  # Entfernt ".PDF"
+    new_filename = f"{original_filename}_{timestamp}.PDF"
+    file_path = os.path.join(UPLOAD_FOLDER, new_filename)
+
     # Datei speichern
-    file_path = os.path.join(UPLOAD_FOLDER, file.filename)
     with open(file_path, "wb") as buffer:
         buffer.write(await file.read())
 
@@ -44,9 +55,9 @@ async def process_pdf(file: UploadFile = File(...)):
             return {"error": "Die Datei ist keine gültige PDF-Datei."}
 
     # PDF verarbeiten
-    csv_path = extract_pdf_data(file_path)
+    csv_path = extract_pdf_data(file_path, timestamp)
 
-    # 🔹 Generiere die Download-URL
+    #  Generiere die Download-URL
     download_url = f"{BASE_URL}{os.path.basename(csv_path)}"
 
     return JSONResponse(content={"csv_url": download_url})
@@ -60,7 +71,7 @@ async def process_pdf(file: UploadFile = File(...)):
     #)
 
 
-def extract_pdf_data(pdf_path):
+def extract_pdf_data(pdf_path, timestamp):
     data = []
     
     with pdfplumber.open(pdf_path) as pdf:
@@ -69,9 +80,10 @@ def extract_pdf_data(pdf_path):
             data.extend(parse_order_lines(text_lines))
 
     df = pd.DataFrame(data, columns=["SKU", "Produktname", "Menge"])
-    
-    # Speichere CSV direkt im gleichen Ordner wie die PDFs, falls notwendig
-    csv_filename = os.path.basename(pdf_path).replace(".PDF", ".csv")
+
+    # 🕒 Dateiname mit Zeitstempel
+    original_filename = os.path.splitext(os.path.basename(pdf_path))[0]  # Entfernt ".PDF"
+    csv_filename = f"{original_filename}_{timestamp}.csv"
     csv_path = os.path.join(CSV_FOLDER, csv_filename)
     
     df.to_csv(csv_path, index=False, sep=";")
