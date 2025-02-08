@@ -1,5 +1,5 @@
 from fastapi import FastAPI, File, UploadFile
-from fastapi.responses import FileResponse
+from fastapi.responses import JSONResponse
 import pdfplumber
 import pandas as pd
 import re
@@ -9,6 +9,8 @@ app = FastAPI()
 
 UPLOAD_FOLDER = "uploads"
 CSV_FOLDER = "csv"
+BASE_URL = "https://e1-converter.onrender.com/download/"  # Deine URL für Downloads
+
 os.makedirs(CSV_FOLDER, exist_ok=True)
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
@@ -44,13 +46,18 @@ async def process_pdf(file: UploadFile = File(...)):
     # PDF verarbeiten
     csv_path = extract_pdf_data(file_path)
 
+    # 🔹 Generiere die Download-URL
+    download_url = f"{BASE_URL}{os.path.basename(csv_path)}"
+
+    return JSONResponse(content={"csv_url": download_url})
+
     # ✅ Datei mit Download-Header zurückgeben
-    return FileResponse(
-        csv_path,
-        filename=os.path.basename(csv_path),
-        media_type="text/csv",
-        headers={"Content-Disposition": f"attachment; filename={os.path.basename(csv_path)}"}
-    )
+    #return FileResponse(
+    #    csv_path,
+    #    filename=os.path.basename(csv_path),
+    #    media_type="text/csv",
+    #   headers={"Content-Disposition": f"attachment; filename={os.path.basename(csv_path)}"}
+    #)
 
 
 def extract_pdf_data(pdf_path):
