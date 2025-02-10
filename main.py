@@ -62,14 +62,6 @@ async def process_pdf(file: UploadFile = File(...)):
 
     return JSONResponse(content={"csv_url": download_url})
 
-    # ✅ Datei mit Download-Header zurückgeben
-    #return FileResponse(
-    #    csv_path,
-    #    filename=os.path.basename(csv_path),
-    #    media_type="text/csv",
-    #   headers={"Content-Disposition": f"attachment; filename={os.path.basename(csv_path)}"}
-    #)
-
 
 def extract_pdf_data(pdf_path, timestamp):
     data = []
@@ -79,7 +71,7 @@ def extract_pdf_data(pdf_path, timestamp):
             text_lines = page.extract_text().split("\n")
             data.extend(parse_order_lines(text_lines))
 
-    df = pd.DataFrame(data, columns=["SKU", "Produktname", "Menge"])
+    df = pd.DataFrame(data, columns=["sku", "qty", "name"])
 
     # 🕒 Dateiname mit Zeitstempel
     original_filename = os.path.splitext(os.path.basename(pdf_path))[0]  # Entfernt ".PDF"
@@ -94,8 +86,8 @@ def extract_pdf_data(pdf_path, timestamp):
 def parse_order_lines(text_lines):
     order_lines = []
     current_sku = None
-    current_product = None
     current_qty = None
+    current_name = None
 
     print("\n🔎 Suche nach Bestellungen...")
     for i in range(len(text_lines) - 5):  # Puffer für QTY-Suche
@@ -105,8 +97,8 @@ def parse_order_lines(text_lines):
         sku_match = re.search(r"(\d{4,}-\d{6,}-\d{3}) /(\d{11,})", line)
         if sku_match:
             current_sku = sku_match.group(1).strip()  # SKU
-            current_product = text_lines[i + 1].strip()  # Produktname steht in der nächsten Zeile
-            print(f"🔹 Gefunden: SKU={current_sku}, Produktname={current_product}")
+            current_name = text_lines[i + 1].strip()  # Produktname steht in der nächsten Zeile
+            print(f"🔹 Gefunden: SKU={current_sku}, Produktname={current_name}")
 
             # Mengenangabe in den nächsten 5 Zeilen suchen
             for j in range(2, 6):
@@ -118,12 +110,12 @@ def parse_order_lines(text_lines):
                         break  # Falls gefunden, abbrechen
 
             # Falls alle Werte vorhanden sind, speichern
-            if current_sku and current_product and current_qty:
-                order_lines.append([current_sku, current_product, current_qty])
+            if current_sku and current_name and current_qty:
+                order_lines.append([current_sku, current_qty, current_name])
 
                 # Zurücksetzen für die nächste Bestellung
                 current_sku = None
-                current_product = None
                 current_qty = None
+                current_name = None
 
     return order_lines
