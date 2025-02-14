@@ -36,7 +36,7 @@ async def download_csv(filename: str):
 
 @app.post("/process-pdf/")
 async def process_pdf(file: UploadFile = File(...)):
-    # 🕒 Erstelle einen eindeutigen Zeitstempel
+    # Erstelle einen eindeutigen Zeitstempel
     timestamp = int(time.time())
 
     #  Generiere einen neuen Dateinamen mit Zeitstempel
@@ -71,9 +71,9 @@ def extract_pdf_data(pdf_path, timestamp):
             text_lines = page.extract_text().split("\n")
             data.extend(parse_order_lines(text_lines))
 
-    df = pd.DataFrame(data, columns=["sku", "qty", "name"])
+    df = pd.DataFrame(data, columns=["sku", "qty", "uom_left", "qty-2", "uom_right", "name"])
 
-    # 🕒 Dateiname mit Zeitstempel
+    # Dateiname mit Zeitstempel
     original_filename = os.path.splitext(os.path.basename(pdf_path))[0]  # Entfernt ".PDF"
     csv_filename = f"{original_filename}_{timestamp}.csv"
     csv_path = os.path.join(CSV_FOLDER, csv_filename)
@@ -85,37 +85,54 @@ def extract_pdf_data(pdf_path, timestamp):
 
 def parse_order_lines(text_lines):
     order_lines = []
-    current_sku = None
-    current_qty = None
-    current_name = None
 
     print("\n🔎 Suche nach Bestellungen...")
     for i in range(len(text_lines) - 5):  # Puffer für QTY-Suche
         line = text_lines[i]
 
-        # Neue Regex für SKU – jetzt erkennt sie auch Positionsnummern davor
-        sku_match = re.search(r"(\d{4,}-\d{6,}-\d{3}) /(\d{11,})", line)
+        # Neue Regex für SKU
+        sku_match = re.search(r"(\d{4,}-\d{6,}-\d{3}) /(\d+)", line)
         if sku_match:
-            current_sku = sku_match.group(1).strip()  # SKU
-            current_name = text_lines[i + 1].strip()  # Produktname steht in der nächsten Zeile
-            print(f"🔹 Gefunden: SKU={current_sku}, Produktname={current_name}")
+            sku = sku_match.group(1).strip()  # SKU
+            name = text_lines[i + 1].strip()  # Produktname steht in der nächsten Zeile
+            print(f"🔹 Gefunden: SKU={sku}, Produktname={name}")
 
-            # Mengenangabe in den nächsten 5 Zeilen suchen
+            # Mengenangaben und Einheiten in den nächsten Zeilen suchen
+            qty = None
+            uom_left = None
+            qty_2 = None
+            uom_right = None
+
             for j in range(2, 6):
                 if i + j < len(text_lines):
-                    qty_match = re.search(r"(\d+) ST", text_lines[i + j])
-                    if qty_match:
-                        current_qty = int(qty_match.group(1))
-                        print(f"   ➡ Menge gefunden: {current_qty} ST")
-                        break  # Falls gefunden, abbrechen
+                    # Mengenzeile aufteilen
+                    parts = text_lines[i + j].split()
+                    if "*" in parts:  # Sicherstellen, dass das * Zeichen vorhanden ist
+                        try:
+                            idx_star = parts.index("*")  # Index des "*" Zeichens
+                            qty = int(parts[idx_star - 2])  # Erste Mengenangabe (qty)
+                            uom_left = parts[idx_star - 1]  # Erste Einheit (uom_left)
+
+                            # ✅ Fix für `qty-2`: Tausendertrennzeichen entfernen
+                            raw_qty_2 = parts[idx_star + 2].replace(",", "")  # Entfernt `,`
+                            qty_2 = int(raw_qty_2) if raw_qty_2.isdigit() else float(raw_qty_2)
+
+                            uom_right = parts[idx_star + 3]  # Zweite Einheit (uom_right)
+
+                            print(f"   ➡ Menge gefunden: {qty} {uom_left}, {qty_2} {uom_right}")
+                            break  # Falls gefunden, abbrechen
+                        except (IndexError, ValueError):
+                            print(f"⚠️ Fehler beim Parsen der Mengenangaben für SKU {sku}")
+
+            # Falls eine Variable nicht gefunden wurde, setzen wir Standardwerte
+            sku = sku if sku else "N/A"
+            qty = qty if qty is not None else 0
+            uom_left = uom_left if uom_left else "N/A"
+            qty_2 = qty_2 if qty_2 is not None else 0
+            uom_right = uom_right if uom_right else "N/A"
+            name = name if name else "N/A"
 
             # Falls alle Werte vorhanden sind, speichern
-            if current_sku and current_name and current_qty:
-                order_lines.append([current_sku, current_qty, current_name])
-
-                # Zurücksetzen für die nächste Bestellung
-                current_sku = None
-                current_qty = None
-                current_name = None
+            order_lines.append([sku, qty, uom_left, qty_2, uom_right, name])
 
     return order_lines
