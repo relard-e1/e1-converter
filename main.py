@@ -41,7 +41,7 @@ async def process_pdf(file: UploadFile = File(...)):
 
     #  Generiere einen neuen Dateinamen mit Zeitstempel
     original_filename = os.path.splitext(file.filename)[0]  # Entfernt ".PDF"
-    new_filename = f"{original_filename}_{timestamp}.PDF"
+    new_filename = f"{original_filename}_{timestamp}.PDF".replace(" ", "_")  # Leerzeichen ersetzen
     file_path = os.path.join(UPLOAD_FOLDER, new_filename)
 
     # Datei speichern
@@ -87,10 +87,11 @@ def parse_order_lines(text_lines):
     order_lines = []
 
     print("\n🔎 Suche nach Bestellungen...")
-    for i in range(len(text_lines) - 5):  # Puffer für QTY-Suche
+    i = 0
+    while i < len(text_lines) - 2:  # Mindestens 3 Zeilen müssen noch da sein
         line = text_lines[i]
 
-        # Neue Regex für SKU
+        # Fall 1: SKU ist vorhanden
         sku_match = re.search(r"(\d{4,}-\d{6,}-\d{3}) /(\d+)", line)
         if sku_match:
             sku = sku_match.group(1).strip()  # SKU
@@ -134,5 +135,52 @@ def parse_order_lines(text_lines):
 
             # Falls alle Werte vorhanden sind, speichern
             order_lines.append([sku, qty, uom_left, qty_2, uom_right, name])
+            i += 4  # Überspringe 4 Zeilen (SKU, Name, Zusatzinfo, Mengenzeile)
+        
+        elif re.match(r"^\d+\s+/", line):  # Bestellposition beginnt mit einer Zahl und "/"
+            print(f"🔸 Alternative Extraktion: Zeile {i} erkannt als Bestellposition.")
+
+            # Produktname aus der nächsten Zeile
+            name = text_lines[i + 1].strip() if i + 1 < len(text_lines) else "N/A"
+
+            # Mengenangaben aus der dritten Zeile
+            qty = None
+            uom_left = None
+            qty_2 = None
+            uom_right = None
+
+            if i + 2 < len(text_lines):
+                parts = text_lines[i + 2].split()
+                if "X" in parts:
+                    try:
+                        idx_x = parts.index("X")  # Index von "X"
+                        qty = int(parts[idx_x - 1])  # Erste Menge (qty-1)
+                        uom_left = parts[idx_x + 1]  # Erste Einheit (uom_left)
+                        # Falls noch weitere Werte folgen:
+                        if idx_x + 3 < len(parts):
+                            raw_qty_2 = parts[idx_x + 2].replace(",", "")
+                            qty_2 = int(raw_qty_2) if raw_qty_2.isdigit() else float(raw_qty_2)
+                            uom_right = parts[idx_x + 3]
+                        else:
+                            qty_2 = 0
+                            uom_right = "N/A"
+
+                        print(f"   ➡ Menge gefunden: {qty} {uom_left}, {qty_2} {uom_right}")
+                    except (IndexError, ValueError):
+                        print(f"⚠️ Fehler beim Parsen der Mengenangaben für Produkt {name}")
+
+            # Falls eine Variable nicht gefunden wurde, setzen wir Standardwerte
+            sku = "N/A"
+            qty = qty if qty is not None else 0
+            uom_left = uom_left if uom_left else "N/A"
+            qty_2 = qty_2 if qty_2 is not None else 0
+            uom_right = uom_right if uom_right else "N/A"
+            name = name if name else "N/A"
+
+            order_lines.append([sku, qty, uom_left, qty_2, uom_right, name])
+            i += 3  # Überspringe 3 Zeilen (Bestellnummer, Name, Mengenzeile)
+
+        else:
+            i += 1  # Falls die Zeile keine Bestellposition ist, zur nächsten springen
 
     return order_lines
