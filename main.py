@@ -1,4 +1,5 @@
 from fastapi import FastAPI, File, UploadFile
+from fastapi.middleware.cors import CORSMiddleware  # CORS-Import hinzufügen
 from fastapi.responses import JSONResponse, FileResponse 
 import pdfplumber
 import pandas as pd
@@ -7,6 +8,15 @@ import os
 import time
 
 app = FastAPI()
+
+# CORS für alle Domains und Methoden aktivieren
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # hier nur erlaubte Domains angeben, z. B. ["http://127.0.0.1:5500"]
+    allow_credentials=True,
+    allow_methods=["*"],  # Erlaubt GET, POST, DELETE usw.
+    allow_headers=["*"],  # Erlaubt alle Header
+)
 
 UPLOAD_FOLDER = "uploads"
 CSV_FOLDER = "csv"
